@@ -2,8 +2,9 @@ pipeline {
     agent any
 
     environment {
-        WAR_FILE = 'target/linkpay.war'  // Adjust to your project WAR name
-        MAVEN_TOOL = 'maven3.9.16'
+        WAR_FILE = 'target/linkpay.war'        // WAR file path
+        MAVEN_TOOL = 'maven3.9.16'             // Maven tool name
+        SLACK_CHANNEL = '#amazon'           // Your Slack channel
     }
 
     stages {
@@ -37,7 +38,7 @@ pipeline {
             }
         }
 
-        // ✅ Stage 5: Deploy to Test Tomcat
+        // Stage 5: Deploy to Test Tomcat
         stage('5. Deploy to Test Tomcat') {
             steps {
                 echo "🚀 Deploying WAR to TEST Tomcat server..."
@@ -52,18 +53,33 @@ pipeline {
             }
         }
 
-        // ✅ Stage 6: Manual Approval Before Production
+        // Stage 6: Manual Approval Before Production
         stage('6. Manual Approval Before Production') {
             steps {
                 script {
+                    // 🟡 Notify Slack before approval
+                    slackSend(
+                        channel: "${amazon}",
+                        message: "🟡 *AWAITING APPROVAL:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Waiting for manual approval to deploy to *PRODUCTION*.",
+                        color: '#e6c300'
+                    )
+
+                    // 🕒 Wait for manual approval (10 min timeout)
                     timeout(time: 10, unit: 'MINUTES') {
                         input message: "✅ Approve deployment to PRODUCTION Tomcat?"
                     }
+
+                    // ✅ Notify Slack after approval
+                    slackSend(
+                        channel: "${amazon}",
+                        message: "🟢 *APPROVED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Proceeding with *PRODUCTION* deployment.",
+                        color: 'good'
+                    )
                 }
             }
         }
 
-        // ✅ Stage 7: Deploy to Prod Tomcat
+        // Stage 7: Deploy to Production Tomcat
         stage('7. Deploy to Production Tomcat') {
             steps {
                 echo "🚀 Deploying WAR to PRODUCTION Tomcat server..."
@@ -76,6 +92,31 @@ pipeline {
                 contextPath: 'linkpay',
                 war: 'target/linkpay.war'
             }
+        }
+    }
+
+    // 🟩 Slack Notifications
+    post {
+        success {
+            slackSend(
+                channel: "${amazon}",
+                message: "✅ *SUCCESS:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Deployment completed successfully!",
+                color: 'good'
+            )
+        }
+        failure {
+            slackSend(
+                channel: "${amazon}",
+                message: "❌ *FAILED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Check Jenkins logs for details.",
+                color: 'danger'
+            )
+        }
+        unstable {
+            slackSend(
+                channel: "${amazon}",
+                message: "⚠️ *UNSTABLE:* ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                color: 'warning'
+            )
         }
     }
 }
