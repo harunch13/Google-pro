@@ -59,7 +59,7 @@ pipeline {
                 script {
                     // 🟡 Notify Slack before approval
                     slackSend(
-                        channel: "${amazon}",
+                        channel: "${SLACK_CHANNEL}",
                         message: "🟡 *AWAITING APPROVAL:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Waiting for manual approval to deploy to *PRODUCTION*.",
                         color: '#e6c300'
                     )
@@ -71,7 +71,7 @@ pipeline {
 
                     // ✅ Notify Slack after approval
                     slackSend(
-                        channel: "${amazon}",
+                        channel: "${SLACK_CHANNEL}",
                         message: "🟢 *APPROVED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Proceeding with *PRODUCTION* deployment.",
                         color: 'good'
                     )
@@ -99,21 +99,21 @@ pipeline {
     post {
         success {
             slackSend(
-                channel: "${amazon}",
+                channel: "${SLACK_CHANNEL}",
                 message: "✅ *SUCCESS:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Deployment completed successfully!",
                 color: 'good'
             )
         }
         failure {
             slackSend(
-                channel: "${amazon}",
+                channel: "${SLACK_CHANNEL}",
                 message: "❌ *FAILED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Check Jenkins logs for details.",
                 color: 'danger'
             )
         }
         unstable {
             slackSend(
-                channel: "${amazon}",
+                channel: "${SLACK_CHANNEL}",
                 message: "⚠️ *UNSTABLE:* ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 color: 'warning'
             )
