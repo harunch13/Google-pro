@@ -80,8 +80,6 @@
 			<artifactId>spring-context</artifactId>
 			<version>${spring.version}</version>
 		</dependency>
-		
-		<!-- provided dependencies -->
 
 	<distributionManagement>
 	    <repository>
