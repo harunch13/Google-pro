@@ -79,7 +79,8 @@
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-context</artifactId>
 			<version>${spring.version}</version>
-		</dependencies>
+		</dependency>
+	</dependencies>
 
 	<distributionManagement>
 	    <repository>
