@@ -17,5 +17,16 @@ pipeline {
                 }
             }
         }
+
+       // stage 3.Sonarqube Analysis
+       stage('3. Sonarqube Analysis') {
+          steps {
+              withCredentials([string(credentialsId: 'sonar-google', variable: 'SONAR_TOKEN')]) {
+                   withMaven(maven: 'maven3.10.0') {
+                       sh "mvn sonar:sonar -Dsonar.host.url=http://sonar:9000 -Dsonar.login=$SONAR_TOKEN"
+                    }
+                }
+            }
+        } 
     }
 }
