@@ -70,23 +70,28 @@ pipeline {
             }
         }
 
-        // FIXED STAGE 7 - Uses EC2 key you tested
+        // FIXED STAGE 7 - Ubuntu 26.04 Tomcat10
         stage('7. Deploy to Production EC2') {
             steps {
                 echo "🚀 Deploying WAR to PRODUCTION EC2 ${EC2_IP}..."
                 sshagent(['ec2-deploy-key']) {
-                    sh '''
+                    sh """
                         echo "Copying WAR to EC2..."
-                        scp -o StrictHostKeyChecking=no target/linkpay.war ubuntu@13.51.168.188:/home/ubuntu/linkpay.war
+                        scp -o StrictHostKeyChecking=no target/linkpay.war ${EC2_USER}@${EC2_IP}:/home/${EC2_USER}/linkpay.war
                         
-                        ssh -o StrictHostKeyChecking=no ubuntu@13.51.168.188 "
-                            echo 'Deploying on EC2...'
-                            sudo cp /home/ubuntu/linkpay.war /opt/tomcat/webapps/linkpay.war
-                            sudo systemctl restart tomcat || sudo /opt/tomcat/bin/catalina.sh stop; sudo /opt/tomcat/bin/catalina.sh start
-                            echo 'Deployment done!'
-                            ls -lh /opt/tomcat/webapps/linkpay.war
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} "
+                            echo 'Deploying to Tomcat10...'
+                            sudo mkdir -p /var/lib/tomcat10/webapps
+                            sudo cp /home/${EC2_USER}/linkpay.war /var/lib/tomcat10/webapps/linkpay.war
+                            sudo chown tomcat:tomcat /var/lib/tomcat10/webapps/linkpay.war
+                            sudo chmod 644 /var/lib/tomcat10/webapps/linkpay.war
+                            sudo systemctl restart tomcat10
+                            sleep 7
+                            echo 'Deployment SUCCESS!'
+                            ls -lh /var/lib/tomcat10/webapps/linkpay.war
+                            sudo systemctl status tomcat10 --no-pager | head -15
                         "
-                    '''
+                    """
                 }
             }
         }
@@ -96,7 +101,7 @@ pipeline {
         success {
             slackSend(
                 channel: "${SLACK_CHANNEL}",
-                message: "✅ *SUCCESS:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Deployed to EC2 ${EC2_IP}/linkpay",
+                message: "✅ *SUCCESS:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Deployed to EC2 ${EC2_IP}:8080/linkpay",
                 color: 'good'
             )
         }
