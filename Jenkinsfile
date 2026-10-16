@@ -2,20 +2,20 @@ pipeline {
     agent any
 
     environment {
-        WAR_FILE = 'target/linkpay.war'        // WAR file path
-        MAVEN_TOOL = 'maven3.10.0'             // Maven tool name
-        SLACK_CHANNEL = '#sam'           // Your Slack channel
+        WAR_FILE = 'target/linkpay.war'
+        MAVEN_TOOL = 'maven3.10.0'
+        SLACK_CHANNEL = '#sam'
+        EC2_IP = '13.51.168.188'
+        EC2_USER = 'ubuntu'
     }
 
     stages {
-        // Stage 1: Git Build
         stage('1. Git Build') {
             steps {
                 git branch: 'main', url: 'https://github.com/harunch13/google-pro.git'
             }
         }
 
-        // Stage 2: Maven Build
         stage('2. Maven Build') {
             steps {
                 withMaven(maven: 'maven3.10.0') {
@@ -24,21 +24,18 @@ pipeline {
             }
         }
 
-        // Stage 3: SonarQube Analysis (optional)
         stage('3. SonarQube Analysis') {
             steps {
                 echo "⏩ Skipping SonarQube analysis for now..."
             }
         }
 
-        // Stage 4: Deploy to Nexus (optional)
         stage('4. Deploy to Nexus') {
             steps {
                 echo "⏩ Skipping Nexus deployment for now..."
             }
         }
 
-        // Stage 5: Deploy to Test Tomcat
         stage('5. Deploy to Test Tomcat') {
             steps {
                 echo "🚀 Deploying WAR to TEST Tomcat server..."
@@ -53,61 +50,60 @@ pipeline {
             }
         }
 
-        // Stage 6: Manual Approval Before Production
         stage('6. Manual Approval Before Production') {
             steps {
                 script {
-                    // 🟡 Notify Slack before approval
                     slackSend(
                         channel: "${SLACK_CHANNEL}",
-                        message: "🟡 *AWAITING APPROVAL:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Waiting for manual approval to deploy to *PRODUCTION*.",
+                        message: "🟡 *AWAITING APPROVAL:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Waiting for manual approval to deploy to *PRODUCTION* EC2 ${EC2_IP}.",
                         color: '#e6c300'
                     )
-
-                    // 🕒 Wait for manual approval (10 min timeout)
                     timeout(time: 10, unit: 'MINUTES') {
-                        input message: "✅ Approve deployment to PRODUCTION Tomcat?"
+                        input message: "✅ Approve deployment to PRODUCTION EC2 ${EC2_IP}?"
                     }
-
-                    // ✅ Notify Slack after approval
                     slackSend(
                         channel: "${SLACK_CHANNEL}",
-                        message: "🟢 *APPROVED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Proceeding with *PRODUCTION* deployment.",
+                        message: "🟢 *APPROVED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Proceeding with *PRODUCTION* deployment to ${EC2_IP}.",
                         color: 'good'
                     )
                 }
             }
         }
 
-        // Stage 7: Deploy to Production Tomcat
-        stage('7. Deploy to Production Tomcat') {
+        // FIXED STAGE 7 - Uses EC2 key you tested
+        stage('7. Deploy to Production EC2') {
             steps {
-                echo "🚀 Deploying WAR to PRODUCTION Tomcat server..."
-                deploy adapters: [
-                    tomcat9(
-                        credentialsId: 'google-deploy',
-                        url: 'http://tomcat:8080/'
-                    )
-                ],
-                contextPath: 'linkpay',
-                war: 'target/linkpay.war'
+                echo "🚀 Deploying WAR to PRODUCTION EC2 ${EC2_IP}..."
+                sshagent(['ec2-deploy-key']) {
+                    sh '''
+                        echo "Copying WAR to EC2..."
+                        scp -o StrictHostKeyChecking=no target/linkpay.war ubuntu@13.51.168.188:/home/ubuntu/linkpay.war
+                        
+                        ssh -o StrictHostKeyChecking=no ubuntu@13.51.168.188 "
+                            echo 'Deploying on EC2...'
+                            sudo cp /home/ubuntu/linkpay.war /opt/tomcat/webapps/linkpay.war
+                            sudo systemctl restart tomcat || sudo /opt/tomcat/bin/catalina.sh stop; sudo /opt/tomcat/bin/catalina.sh start
+                            echo 'Deployment done!'
+                            ls -lh /opt/tomcat/webapps/linkpay.war
+                        "
+                    '''
+                }
             }
         }
     }
 
-    // 🟩 Slack Notifications
     post {
         success {
             slackSend(
                 channel: "${SLACK_CHANNEL}",
-                message: "✅ *SUCCESS:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Deployment completed successfully!",
+                message: "✅ *SUCCESS:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Deployed to EC2 ${EC2_IP}/linkpay",
                 color: 'good'
             )
         }
         failure {
             slackSend(
                 channel: "${SLACK_CHANNEL}",
-                message: "❌ *FAILED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Check Jenkins logs for details.",
+                message: "❌ *FAILED:* ${env.JOB_NAME} #${env.BUILD_NUMBER} — Check Jenkins logs.",
                 color: 'danger'
             )
         }
@@ -119,4 +115,4 @@ pipeline {
             )
         }
     }
-}   
+}
